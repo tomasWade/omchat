@@ -233,6 +233,7 @@ async fn start_directive(
 }
 
 async fn start_interactive(config: &GlobalConfig) -> Result<()> {
+    config.write().init_default_topic();
     let mut repl: Repl = Repl::init(config)?;
     repl.run().await
 }

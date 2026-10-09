@@ -1126,23 +1126,68 @@ impl Config {
         Ok(())
     }
 
-    pub fn session_info(&self) -> Result<String> {
-        if let Some(session) = &self.session {
-            let render_options = self.render_options()?;
-            let mut markdown_render = MarkdownRender::init(render_options)?;
-            let agent_info: Option<(String, Vec<String>)> = self.agent.as_ref().map(|agent| {
-                let functions = agent
-                    .functions()
-                    .declarations()
-                    .iter()
-                    .filter_map(|v| if v.agent { Some(v.name.clone()) } else { None })
-                    .collect();
-                (agent.name().to_string(), functions)
-            });
-            session.render(&mut markdown_render, &agent_info)
-        } else {
-            bail!("No session")
+    pub fn new_topic(&mut self) -> Result<()> {
+        if self.agent.is_some() {
+            if self.session.is_some() {
+                self.empty_session()?;
+            }
+            return Ok(());
         }
+        self.session = Some(self.new_topic_session());
+        self.discontinuous_last_message();
+        Ok(())
+    }
+
+    pub fn init_default_topic(&mut self) {
+        if self.agent.is_none() && self.session.is_none() {
+            let _ = self.new_topic();
+        }
+    }
+
+    fn new_topic_session(&self) -> Session {
+        let mut session = Session::new(self, TEMP_SESSION_NAME);
+        session.set_save_session(Some(false));
+        session
+    }
+
+    pub fn use_role_in_topic(&mut self, name: &str) -> Result<()> {
+        if self.agent.is_some() {
+            bail!("Cannot perform this operation because you are using a agent");
+        }
+        let role = self.retrieve_role(name)?;
+        self.apply_role_in_topic(role, Some(name.to_string()))
+    }
+
+    pub fn use_prompt_in_topic(&mut self, prompt: &str) -> Result<()> {
+        if self.agent.is_some() {
+            bail!("Cannot perform this operation because you are using a agent");
+        }
+        let mut role = Role::new(TEMP_ROLE_NAME, prompt);
+        role.set_model(self.current_model().clone());
+        self.apply_role_in_topic(role, None)
+    }
+
+    fn apply_role_in_topic(&mut self, role: Role, name: Option<String>) -> Result<()> {
+        let non_empty = self
+            .session
+            .as_ref()
+            .map(|v| !v.is_empty())
+            .unwrap_or_default();
+        if non_empty {
+            let mut session = self.new_topic_session();
+            session.set_role(role);
+            self.session = Some(session);
+            self.discontinuous_last_message();
+            match name {
+                Some(v) => println!("(new topic, role: {v})"),
+                None => println!("(new topic)"),
+            }
+        } else if let Some(session) = self.session.as_mut() {
+            session.set_role(role);
+        } else {
+            self.role = Some(role);
+        }
+        Ok(())
     }
 
     pub fn exit_session(&mut self) -> Result<()> {
@@ -1151,43 +1196,6 @@ impl Config {
             session.exit(&sessions_dir, self.working_mode.is_repl())?;
             self.discontinuous_last_message();
         }
-        Ok(())
-    }
-
-    pub fn save_session(&mut self, name: Option<&str>) -> Result<()> {
-        let session_name = match &self.session {
-            Some(session) => match name {
-                Some(v) => v.to_string(),
-                None => session
-                    .autoname()
-                    .unwrap_or_else(|| session.name())
-                    .to_string(),
-            },
-            None => bail!("No session"),
-        };
-        let session_path = self.session_file(&session_name);
-        if let Some(session) = self.session.as_mut() {
-            session.save(&session_name, &session_path, self.working_mode.is_repl())?;
-        }
-        Ok(())
-    }
-
-    pub fn edit_session(&mut self) -> Result<()> {
-        let name = match &self.session {
-            Some(session) => session.name().to_string(),
-            None => bail!("No session"),
-        };
-        let session_path = self.session_file(&name);
-        self.save_session(Some(&name))?;
-        let editor = self.editor()?;
-        edit_file(&editor, &session_path).with_context(|| {
-            format!(
-                "Failed to edit '{}' with '{editor}'",
-                session_path.display()
-            )
-        })?;
-        self.session = Some(Session::load(self, &name, &session_path)?);
-        self.discontinuous_last_message();
         Ok(())
     }
 
@@ -1559,17 +1567,6 @@ impl Config {
         if self.agent.take().is_some() {
             self.rag.take();
             self.discontinuous_last_message();
-        }
-        Ok(())
-    }
-
-    pub fn exit_agent_session(&mut self) -> Result<()> {
-        self.exit_session()?;
-        if let Some(agent) = self.agent.as_mut() {
-            agent.exit_session();
-            if self.working_mode.is_repl() {
-                self.init_agent_shared_variables()?;
-            }
         }
         Ok(())
     }
@@ -2004,9 +2001,11 @@ impl Config {
             output.insert("role", role.name().to_string());
         }
         if let Some(session) = &self.session {
-            output.insert("session", session.name().to_string());
-            if let Some(autoname) = session.autoname() {
-                output.insert("session_autoname", autoname.to_string());
+            if session.name() != TEMP_SESSION_NAME {
+                output.insert("session", session.name().to_string());
+                if let Some(autoname) = session.autoname() {
+                    output.insert("session_autoname", autoname.to_string());
+                }
             }
             output.insert("dirty", session.dirty().to_string());
             let (tokens, percent) = session.tokens_usage();

@@ -1,8 +1,6 @@
 use super::input::*;
 use super::*;
-
 use crate::client::{Message, MessageContent, MessageRole};
-use crate::render::MarkdownRender;
 
 use anyhow::{bail, Context, Result};
 use fancy_regex::Regex;
@@ -173,86 +171,6 @@ impl Session {
         let output = serde_yaml::to_string(&data)
             .with_context(|| format!("Unable to show info about session '{}'", &self.name))?;
         Ok(output)
-    }
-
-    pub fn render(
-        &self,
-        render: &mut MarkdownRender,
-        agent_info: &Option<(String, Vec<String>)>,
-    ) -> Result<String> {
-        let mut items = vec![];
-
-        if let Some(path) = &self.path {
-            items.push(("path", path.to_string()));
-        }
-
-        if let Some(autoname) = self.autoname() {
-            items.push(("autoname", autoname.to_string()));
-        }
-
-        items.push(("model", self.model().id()));
-
-        if let Some(temperature) = self.temperature() {
-            items.push(("temperature", temperature.to_string()));
-        }
-        if let Some(top_p) = self.top_p() {
-            items.push(("top_p", top_p.to_string()));
-        }
-
-        if let Some(use_tools) = self.use_tools() {
-            items.push(("use_tools", use_tools));
-        }
-
-        if let Some(save_session) = self.save_session() {
-            items.push(("save_session", save_session.to_string()));
-        }
-
-        if let Some(compress_threshold) = self.compress_threshold {
-            items.push(("compress_threshold", compress_threshold.to_string()));
-        }
-
-        if let Some(max_input_tokens) = self.model().max_input_tokens() {
-            items.push(("max_input_tokens", max_input_tokens.to_string()));
-        }
-
-        let mut lines: Vec<String> = items
-            .iter()
-            .map(|(name, value)| format!("{name:<20}{value}"))
-            .collect();
-
-        lines.push(String::new());
-
-        if !self.is_empty() {
-            let resolve_url_fn = |url: &str| resolve_data_url(&self.data_urls, url.to_string());
-
-            for message in &self.messages {
-                match message.role {
-                    MessageRole::System => {
-                        lines.push(
-                            render
-                                .render(&message.content.render_input(resolve_url_fn, agent_info)),
-                        );
-                    }
-                    MessageRole::Assistant => {
-                        if let MessageContent::Text(text) = &message.content {
-                            lines.push(render.render(text));
-                        }
-                        lines.push("".into());
-                    }
-                    MessageRole::User => {
-                        lines.push(format!(
-                            ">> {}",
-                            message.content.render_input(resolve_url_fn, agent_info)
-                        ));
-                    }
-                    MessageRole::Tool => {
-                        lines.push(message.content.render_input(resolve_url_fn, agent_info));
-                    }
-                }
-            }
-        }
-
-        Ok(lines.join("\n"))
     }
 
     pub fn tokens_usage(&self) -> (usize, f32) {

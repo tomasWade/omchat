@@ -23,7 +23,7 @@ impl Completer for ReplCompleter {
         }
         let (cmd, cmd_start) = parts[0];
 
-        if !cmd.starts_with('.') {
+        if !(cmd.starts_with('.') || cmd.starts_with('/')) {
             return suggestions;
         }
 

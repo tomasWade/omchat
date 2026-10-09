@@ -22,26 +22,34 @@ impl Highlighter for ReplHighlighter {
 
         if *NO_COLOR {
             styled_text.push((Style::default(), line.to_string()));
-        } else if REPL_COMMANDS.iter().any(|cmd| line.contains(cmd.name)) {
-            let matches: Vec<&str> = REPL_COMMANDS
-                .iter()
-                .filter(|cmd| line.contains(cmd.name))
-                .map(|cmd| cmd.name)
-                .collect();
-            let longest_match = matches.iter().fold(String::new(), |acc, &item| {
-                if item.len() > acc.len() {
-                    item.to_string()
-                } else {
-                    acc
-                }
-            });
-            let buffer_split: Vec<&str> = line.splitn(2, &longest_match).collect();
-
-            styled_text.push((Style::new().fg(DEFAULT_COLOR), buffer_split[0].to_string()));
-            styled_text.push((Style::new().fg(MATCH_COLOR), longest_match));
-            styled_text.push((Style::new().fg(DEFAULT_COLOR), buffer_split[1].to_string()));
         } else {
-            styled_text.push((Style::new().fg(DEFAULT_COLOR), line.to_string()));
+            let mut candidates: Vec<String> = Vec::new();
+            for cmd in REPL_COMMANDS.iter() {
+                candidates.push(cmd.name.to_string());
+                if let Some(rest) = cmd.name.strip_prefix('/') {
+                    candidates.push(format!(".{rest}"));
+                }
+            }
+            let matches: Vec<String> = candidates
+                .into_iter()
+                .filter(|v| line.contains(v.as_str()))
+                .collect();
+            if let Some(longest_match) =
+                matches.iter().fold(None, |acc: Option<&String>, item| {
+                    match acc {
+                        Some(acc) if acc.len() >= item.len() => Some(acc),
+                        _ => Some(item),
+                    }
+                })
+            {
+                let buffer_split: Vec<&str> = line.splitn(2, longest_match.as_str()).collect();
+
+                styled_text.push((Style::new().fg(DEFAULT_COLOR), buffer_split[0].to_string()));
+                styled_text.push((Style::new().fg(MATCH_COLOR), longest_match.to_string()));
+                styled_text.push((Style::new().fg(DEFAULT_COLOR), buffer_split[1].to_string()));
+            } else {
+                styled_text.push((Style::new().fg(DEFAULT_COLOR), line.to_string()));
+            }
         }
 
         styled_text

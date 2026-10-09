@@ -31,162 +31,130 @@ use std::{env, process};
 
 const MENU_NAME: &str = "completion_menu";
 
-static REPL_COMMANDS: LazyLock<[ReplCommand; 36]> = LazyLock::new(|| {
+static REPL_COMMANDS: LazyLock<[ReplCommand; 31]> = LazyLock::new(|| {
     [
-        ReplCommand::new(".help", "Show this help guide", AssertState::pass()),
-        ReplCommand::new(".info", "Show system info", AssertState::pass()),
+        ReplCommand::new("/help", "Show this help guide", AssertState::pass()),
+        ReplCommand::new("/info", "Show system info", AssertState::pass()),
         ReplCommand::new(
-            ".edit config",
+            "/edit config",
             "Modify configuration file",
             AssertState::False(StateFlags::AGENT),
         ),
-        ReplCommand::new(".model", "Switch LLM model", AssertState::pass()),
+        ReplCommand::new("/model", "Switch LLM model", AssertState::pass()),
         ReplCommand::new(
-            ".prompt",
+            "/prompt",
             "Set a temporary role using a prompt",
-            AssertState::False(StateFlags::SESSION | StateFlags::AGENT),
+            AssertState::False(StateFlags::AGENT),
         ),
         ReplCommand::new(
-            ".role",
+            "/role",
             "Create or switch to a role",
-            AssertState::False(StateFlags::SESSION | StateFlags::AGENT),
+            AssertState::False(StateFlags::AGENT),
         ),
         ReplCommand::new(
-            ".info role",
+            "/info role",
             "Show role info",
             AssertState::True(StateFlags::ROLE),
         ),
         ReplCommand::new(
-            ".edit role",
+            "/edit role",
             "Modify current role",
-            AssertState::TrueFalse(StateFlags::ROLE, StateFlags::SESSION),
+            AssertState::True(StateFlags::ROLE),
         ),
         ReplCommand::new(
-            ".save role",
+            "/save role",
             "Save current role to file",
-            AssertState::TrueFalse(
-                StateFlags::ROLE,
-                StateFlags::SESSION_EMPTY | StateFlags::SESSION,
-            ),
+            AssertState::True(StateFlags::ROLE),
         ),
         ReplCommand::new(
-            ".exit role",
+            "/exit role",
             "Exit active role",
-            AssertState::TrueFalse(StateFlags::ROLE, StateFlags::SESSION),
+            AssertState::True(StateFlags::ROLE),
         ),
+        ReplCommand::new("/new", "Start a new topic", AssertState::pass()),
         ReplCommand::new(
-            ".session",
-            "Start or switch to a session",
-            AssertState::False(StateFlags::SESSION_EMPTY | StateFlags::SESSION),
-        ),
-        ReplCommand::new(
-            ".empty session",
-            "Clear session messages",
-            AssertState::True(StateFlags::SESSION),
-        ),
-        ReplCommand::new(
-            ".compress session",
-            "Compress session messages",
-            AssertState::True(StateFlags::SESSION),
-        ),
-        ReplCommand::new(
-            ".info session",
-            "Show session info",
+            "/compress",
+            "Compress current topic context",
             AssertState::True(StateFlags::SESSION_EMPTY | StateFlags::SESSION),
         ),
         ReplCommand::new(
-            ".edit session",
-            "Modify current session",
-            AssertState::True(StateFlags::SESSION_EMPTY | StateFlags::SESSION),
-        ),
-        ReplCommand::new(
-            ".save session",
-            "Save current session to file",
-            AssertState::True(StateFlags::SESSION_EMPTY | StateFlags::SESSION),
-        ),
-        ReplCommand::new(
-            ".exit session",
-            "Exit active session",
-            AssertState::True(StateFlags::SESSION_EMPTY | StateFlags::SESSION),
-        ),
-        ReplCommand::new(".agent", "Use an agent", AssertState::bare()),
-        ReplCommand::new(
-            ".starter",
-            "Use a conversation starter",
-            AssertState::True(StateFlags::AGENT),
-        ),
-        ReplCommand::new(
-            ".edit agent-config",
-            "Modify agent configuration file",
-            AssertState::True(StateFlags::AGENT),
-        ),
-        ReplCommand::new(
-            ".info agent",
-            "Show agent info",
-            AssertState::True(StateFlags::AGENT),
-        ),
-        ReplCommand::new(
-            ".exit agent",
-            "Leave agent",
-            AssertState::True(StateFlags::AGENT),
-        ),
-        ReplCommand::new(
-            ".rag",
-            "Initialize or access RAG",
-            AssertState::False(StateFlags::AGENT),
-        ),
-        ReplCommand::new(
-            ".edit rag-docs",
-            "Add or remove documents from an existing RAG",
-            AssertState::TrueFalse(StateFlags::RAG, StateFlags::AGENT),
-        ),
-        ReplCommand::new(
-            ".rebuild rag",
-            "Rebuild RAG for document changes",
-            AssertState::True(StateFlags::RAG),
-        ),
-        ReplCommand::new(
-            ".sources rag",
-            "Show citation sources used in last query",
-            AssertState::True(StateFlags::RAG),
-        ),
-        ReplCommand::new(
-            ".info rag",
+            "/info rag",
             "Show RAG info",
             AssertState::True(StateFlags::RAG),
         ),
         ReplCommand::new(
-            ".exit rag",
+            "/edit rag-docs",
+            "Add or remove documents from an existing RAG",
+            AssertState::TrueFalse(StateFlags::RAG, StateFlags::AGENT),
+        ),
+        ReplCommand::new(
+            "/rebuild rag",
+            "Rebuild RAG for document changes",
+            AssertState::True(StateFlags::RAG),
+        ),
+        ReplCommand::new(
+            "/sources rag",
+            "Show citation sources used in last query",
+            AssertState::True(StateFlags::RAG),
+        ),
+        ReplCommand::new(
+            "/exit rag",
             "Leave RAG",
             AssertState::TrueFalse(StateFlags::RAG, StateFlags::AGENT),
         ),
-        ReplCommand::new(".macro", "Execute a macro", AssertState::pass()),
         ReplCommand::new(
-            ".file",
+            "/rag",
+            "Initialize or access RAG",
+            AssertState::False(StateFlags::AGENT),
+        ),
+        ReplCommand::new("/agent", "Use an agent", AssertState::bare()),
+        ReplCommand::new(
+            "/starter",
+            "Use a conversation starter",
+            AssertState::True(StateFlags::AGENT),
+        ),
+        ReplCommand::new(
+            "/edit agent-config",
+            "Modify agent configuration file",
+            AssertState::True(StateFlags::AGENT),
+        ),
+        ReplCommand::new(
+            "/info agent",
+            "Show agent info",
+            AssertState::True(StateFlags::AGENT),
+        ),
+        ReplCommand::new(
+            "/exit agent",
+            "Leave agent",
+            AssertState::True(StateFlags::AGENT),
+        ),
+        ReplCommand::new("/macro", "Execute a macro", AssertState::pass()),
+        ReplCommand::new(
+            "/file",
             "Include files, directories, URLs or commands",
             AssertState::pass(),
         ),
         ReplCommand::new(
-            ".continue",
+            "/continue",
             "Continue previous response",
             AssertState::pass(),
         ),
         ReplCommand::new(
-            ".regenerate",
+            "/regenerate",
             "Regenerate last response",
             AssertState::pass(),
         ),
-        ReplCommand::new(".copy", "Copy last response", AssertState::pass()),
-        ReplCommand::new(".set", "Modify runtime settings", AssertState::pass()),
+        ReplCommand::new("/copy", "Copy last response", AssertState::pass()),
+        ReplCommand::new("/set", "Modify runtime settings", AssertState::pass()),
         ReplCommand::new(
-            ".delete",
-            "Delete roles, sessions, RAGs, or agents",
+            "/delete",
+            "Delete roles, RAGs, macros, or agents",
             AssertState::pass(),
         ),
-        ReplCommand::new(".exit", "Exit REPL", AssertState::pass()),
+        ReplCommand::new("/exit", "Exit REPL", AssertState::pass()),
     ]
 });
-static COMMAND_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*(\.\S*)\s*").unwrap());
+static COMMAND_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*([./]\S*)\s*").unwrap());
 static MULTILINE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?s)^\s*:::\s*(.*)\s*:::\s*$").unwrap());
 
@@ -218,7 +186,7 @@ impl Repl {
         {
             print!(
                 r#"Welcome to {} {}
-Type ".help" for additional help.
+Type "/help" for additional help.
 "#,
                 env!("CARGO_CRATE_NAME"),
                 env!("CARGO_PKG_VERSION"),
@@ -382,17 +350,52 @@ pub async fn run_repl_command(
         }
     }
     match parse_command(line) {
-        Some((cmd, args)) => match cmd {
-            ".help" => {
+        Some((raw_cmd, args)) => {
+            let cmd = normalize_command(raw_cmd);
+            if !is_known_command(&cmd) {
+                let input = Input::from_str(config, line, None);
+                ask(config, abort_signal.clone(), input, true).await?;
+            } else if dispatch_repl_command(config, abort_signal, &cmd, args).await? {
+                return Ok(true);
+            }
+        }
+        None => {
+            let input = Input::from_str(config, line, None);
+            ask(config, abort_signal.clone(), input, true).await?;
+        }
+    }
+
+    if !config.read().macro_flag {
+        println!();
+    }
+
+    Ok(false)
+}
+
+fn normalize_command(cmd: &str) -> String {
+    format!("/{}", cmd[1..].trim_start_matches('/'))
+}
+
+fn is_known_command(cmd: &str) -> bool {
+    cmd == "/session"
+        || REPL_COMMANDS
+            .iter()
+            .any(|v| v.name.split(' ').next() == Some(cmd))
+}
+
+async fn dispatch_repl_command(
+    config: &GlobalConfig,
+    abort_signal: AbortSignal,
+    cmd: &str,
+    args: Option<&str>,
+) -> Result<bool> {
+    match cmd {
+            "/help" => {
                 dump_repl_help();
             }
-            ".info" => match args {
+            "/info" => match args {
                 Some("role") => {
                     let info = config.read().role_info()?;
-                    print!("{info}");
-                }
-                Some("session") => {
-                    let info = config.read().session_info()?;
                     print!("{info}");
                 }
                 Some("rag") => {
@@ -409,19 +412,19 @@ pub async fn run_repl_command(
                     print!("{output}");
                 }
             },
-            ".model" => match args {
+            "/model" => match args {
                 Some(name) => {
                     config.write().set_model(name)?;
                 }
-                None => println!("Usage: .model <name>"),
+                None => println!("Usage: /model <name>"),
             },
-            ".prompt" => match args {
+            "/prompt" => match args {
                 Some(text) => {
-                    config.write().use_prompt(text)?;
+                    config.write().use_prompt_in_topic(text)?;
                 }
-                None => println!("Usage: .prompt <text>..."),
+                None => println!("Usage: /prompt <text>..."),
             },
-            ".role" => match args {
+            "/role" => match args {
                 Some(args) => match args.split_once(['\n', ' ']) {
                     Some((name, text)) => {
                         let role = config.read().retrieve_role(name.trim())?;
@@ -433,23 +436,26 @@ pub async fn run_repl_command(
                         if !Config::has_role(name) {
                             config.write().new_role(name)?;
                         }
-                        config.write().use_role(name)?;
+                        config.write().use_role_in_topic(name)?;
                     }
                 },
                 None => println!(
                     r#"Usage:
-    .role <name>                    # If the role exists, switch to it; otherwise, create a new role
-    .role <name> [text]...          # Temporarily switch to the role, send the text, and switch back"#
+    /role <name>                    # If the role exists, switch to it; otherwise, create a new role
+    /role <name> [text]...          # Temporarily switch to the role, send the text, and switch back"#
                 ),
             },
-            ".session" => {
-                config.write().use_session(args)?;
-                Config::maybe_autoname_session(config.clone());
+            "/new" => {
+                config.write().new_topic()?;
             }
-            ".rag" => {
+            "/session" => match args {
+                Some(_) => println!("Named sessions have been removed, starting a new topic instead."),
+                None => {}
+            },
+            "/rag" => {
                 Config::use_rag(config, args, abort_signal.clone()).await?;
             }
-            ".agent" => match split_first_arg(args) {
+            "/agent" => match split_first_arg(args) {
                 Some((agent_name, args)) => {
                     let (new_args, _) = split_args_text(args.unwrap_or_default(), cfg!(windows));
                     let (session_name, variable_pairs) = match new_args.first() {
@@ -475,10 +481,10 @@ pub async fn run_repl_command(
                     ret?;
                 }
                 None => {
-                    println!(r#"Usage: .agent <agent-name> [session-name] [key=value]..."#)
+                    println!(r#"Usage: /agent <agent-name> [session-name] [key=value]..."#)
                 }
             },
-            ".starter" => match args {
+            "/starter" => match args {
                 Some(id) => {
                     let mut text = None;
                     if let Some(agent) = config.read().agent.as_ref() {
@@ -504,18 +510,15 @@ pub async fn run_repl_command(
                     config.read().print_markdown(&banner)?;
                 }
             },
-            ".save" => match split_first_arg(args) {
+            "/save" => match split_first_arg(args) {
                 Some(("role", name)) => {
                     config.write().save_role(name)?;
                 }
-                Some(("session", name)) => {
-                    config.write().save_session(name)?;
-                }
                 _ => {
-                    println!(r#"Usage: .save <role|session> [name]"#)
+                    println!(r#"Usage: /save role <name>"#)
                 }
             },
-            ".edit" => {
+            "/edit" => {
                 if config.read().macro_flag {
                     bail!("Cannot perform this operation because you are in a macro")
                 }
@@ -526,9 +529,6 @@ pub async fn run_repl_command(
                     Some("role") => {
                         config.write().edit_role()?;
                     }
-                    Some("session") => {
-                        config.write().edit_session()?;
-                    }
                     Some("rag-docs") => {
                         Config::edit_rag_docs(config, abort_signal.clone()).await?;
                     }
@@ -536,38 +536,32 @@ pub async fn run_repl_command(
                         config.write().edit_agent_config()?;
                     }
                     _ => {
-                        println!(r#"Usage: .edit <config|role|session|rag-docs|agent-config>"#)
+                        println!(r#"Usage: /edit <config|role|rag-docs|agent-config>"#)
                     }
                 }
             }
-            ".compress" => match args {
-                Some("session") => {
-                    abortable_run_with_spinner(
-                        Config::compress_session(config),
-                        "Compressing",
-                        abort_signal.clone(),
-                    )
-                    .await?;
-                    println!("✓ Successfully compressed the session.");
+            "/compress" => {
+                match args {
+                    None | Some("session") => {
+                        abortable_run_with_spinner(
+                            Config::compress_session(config),
+                            "Compressing",
+                            abort_signal.clone(),
+                        )
+                        .await?;
+                        println!("✓ Successfully compressed the topic.");
+                    }
+                    _ => {
+                        println!(r#"Usage: /compress"#)
+                    }
                 }
-                _ => {
-                    println!(r#"Usage: .compress session"#)
-                }
-            },
-            ".empty" => match args {
-                Some("session") => {
-                    config.write().empty_session()?;
-                }
-                _ => {
-                    println!(r#"Usage: .empty session"#)
-                }
-            },
-            ".rebuild" => match args {
+            }
+            "/rebuild" => match args {
                 Some("rag") => {
                     Config::rebuild_rag(config, abort_signal.clone()).await?;
                 }
                 _ => {
-                    println!(r#"Usage: .rebuild rag"#)
+                    println!(r#"Usage: /rebuild rag"#)
                 }
             },
             ".sources" => match args {
@@ -576,10 +570,10 @@ pub async fn run_repl_command(
                     println!("{output}");
                 }
                 _ => {
-                    println!(r#"Usage: .sources rag"#)
+                    println!(r#"Usage: /sources rag"#)
                 }
             },
-            ".macro" => match split_first_arg(args) {
+            "/macro" => match split_first_arg(args) {
                 Some((name, extra)) => {
                     if !Config::has_macro(name) && extra.is_none() {
                         config.write().new_macro(name)?;
@@ -587,9 +581,9 @@ pub async fn run_repl_command(
                         macro_execute(config, name, extra, abort_signal.clone()).await?;
                     }
                 }
-                None => println!("Usage: .macro <name> <text>..."),
+                None => println!("Usage: /macro <name> <text>..."),
             },
-            ".file" => match args {
+            "/file" => match args {
                 Some(args) => {
                     let (files, text) = split_args_text(args, cfg!(windows));
                     let input = Input::from_files_with_spinner(
@@ -603,18 +597,18 @@ pub async fn run_repl_command(
                     ask(config, abort_signal.clone(), input, true).await?;
                 }
                 None => println!(
-                    r#"Usage: .file <file|dir|url|cmd|loader:resource|%%>... [-- <text>...]
+                    r#"Usage: /file <file|dir|url|cmd|loader:resource|%%>... [-- <text>...]
 
-.file /tmp/file.txt
-.file src/ Cargo.toml -- analyze
-.file https://example.com/file.txt -- summarize
-.file https://example.com/image.png -- recognize text
-.file `git diff` -- Generate git commit message
-.file jina:https://example.com
-.file %% -- translate last reply to english"#
+/file /tmp/file.txt
+/file src/ Cargo.toml -- analyze
+/file https://example.com/file.txt -- summarize
+/file https://example.com/image.png -- recognize text
+/file `git diff` -- Generate git commit message
+/file jina:https://example.com
+/file %% -- translate last reply to english"#
                 ),
             },
-            ".continue" => {
+            "/continue" => {
                 let LastMessage {
                     mut input, output, ..
                 } = match config
@@ -630,7 +624,7 @@ pub async fn run_repl_command(
                 input.set_continue_output(&output);
                 ask(config, abort_signal.clone(), input, true).await?;
             }
-            ".regenerate" => {
+            "/regenerate" => {
                 let LastMessage { mut input, .. } = match config
                     .read()
                     .last_message
@@ -644,23 +638,23 @@ pub async fn run_repl_command(
                 input.set_regenerate();
                 ask(config, abort_signal.clone(), input, true).await?;
             }
-            ".set" => match args {
+            "/set" => match args {
                 Some(args) => {
                     Config::update(config, args)?;
                 }
                 _ => {
-                    println!("Usage: .set <key> <value>...")
+                    println!("Usage: /set <key> <value>...")
                 }
             },
-            ".delete" => match args {
+            "/delete" => match args {
                 Some(args) => {
                     Config::delete(config, args)?;
                 }
                 _ => {
-                    println!("Usage: .delete <role|session|rag|macro|agent-data>")
+                    println!("Usage: /delete <role|rag|macro|agent-data>")
                 }
             },
-            ".copy" => {
+            "/copy" => {
                 let output = match config
                     .read()
                     .last_message
@@ -673,16 +667,9 @@ pub async fn run_repl_command(
                 };
                 set_text(&output).context("Failed to copy the last chat response")?;
             }
-            ".exit" => match args {
+            "/exit" => match args {
                 Some("role") => {
                     config.write().exit_role()?;
-                }
-                Some("session") => {
-                    if config.read().agent.is_some() {
-                        config.write().exit_agent_session()?;
-                    } else {
-                        config.write().exit_session()?;
-                    }
                 }
                 Some("rag") => {
                     config.write().exit_rag()?;
@@ -695,24 +682,8 @@ pub async fn run_repl_command(
                     return Ok(true);
                 }
             },
-            ".clear" => match args {
-                Some("messages") => {
-                    bail!("Use '.empty session' instead");
-                }
-                _ => unknown_command()?,
-            },
             _ => unknown_command()?,
-        },
-        None => {
-            let input = Input::from_str(config, line, None);
-            ask(config, abort_signal.clone(), input, true).await?;
-        }
     }
-
-    if !config.read().macro_flag {
-        println!();
-    }
-
     Ok(false)
 }
 
@@ -759,7 +730,7 @@ async fn ask(
 }
 
 fn unknown_command() -> Result<()> {
-    bail!(r#"Unknown command. Type ".help" for additional help."#);
+    bail!(r#"Unknown usage. Type "/help" for additional help."#);
 }
 
 fn dump_repl_help() {
@@ -889,6 +860,28 @@ mod tests {
             parse_command(".prompt \nabc\n"),
             Some((".prompt", Some("abc")))
         );
+        assert_eq!(parse_command(" /new"), Some(("/new", None)));
+        assert_eq!(
+            parse_command(" /file a.txt -- hi"),
+            Some(("/file", Some("a.txt -- hi")))
+        );
+    }
+
+    #[test]
+    fn test_normalize_command() {
+        assert_eq!(normalize_command("/new"), "/new");
+        assert_eq!(normalize_command(".new"), "/new");
+        assert_eq!(normalize_command(".model"), "/model");
+        assert_eq!(normalize_command("/model"), "/model");
+    }
+
+    #[test]
+    fn test_is_known_command() {
+        assert!(is_known_command("/new"));
+        assert!(is_known_command("/session"));
+        assert!(is_known_command("/info"));
+        assert!(!is_known_command("/etc"));
+        assert!(!is_known_command("/unknown"));
     }
 
     #[test]

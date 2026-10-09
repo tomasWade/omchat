@@ -284,11 +284,6 @@ impl Agent {
         &self.definition.variables
     }
 
-    pub fn exit_session(&mut self) {
-        self.session_variables = None;
-        self.session_dynamic_instructions = None;
-    }
-
     pub fn is_dynamic_instructions(&self) -> bool {
         self.definition.dynamic_instructions
     }
