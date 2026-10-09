@@ -1,12 +1,12 @@
 [package]
-name = "aichat"
-version = "0.30.0"
+name = "omchat"
+version = "0.30.0+topic"
 edition = "2021"
-authors = ["sigoden <sigoden@gmail.com>"]
-description = "All-in-one LLM CLI Tool"
+authors = ["tomasWade"]
+description = "All-in-one LLM CLI Tool (omchat fork of aichat with topic-based sessions)"
 license = "MIT OR Apache-2.0"
-homepage = "https://github.com/sigoden/aichat"
-repository = "https://github.com/sigoden/aichat"
+homepage = "https://github.com/tomasWade/omchat"
+repository = "https://github.com/tomasWade/omchat"
 categories = ["command-line-utilities"]
 keywords = ["chatgpt", "llm", "cli", "ai", "repl"]
 

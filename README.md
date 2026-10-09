@@ -1,3 +1,25 @@
+# omchat
+
+> **这是 [sigoden/aichat](https://github.com/sigoden/aichat) v0.30.0 的个人定制版。**
+> 原始仓库很久不更新了，本 fork 在 0.30.0 基础上按自己的使用习惯改造，命名 **omchat**。
+>
+> ## 本 fork 改了什么
+>
+> **话题（topic）模型取代 session**：聊天自带上下文，`/new` 一键换话题，全程零落盘；
+> 命令全面改为 `/` 前缀短词风格（`/new` `/role` `/model` `/file` `/info` `/help` `/exit`…）。
+> 详见 [USAGE-CN.md](USAGE-CN.md)。
+>
+> ## 构建
+>
+> ```sh
+> cargo build --release
+> cargo install --path .
+> ```
+>
+> 配置目录为 `~/.config/omchat`（自 aichat 迁移：`mv ~/.config/aichat ~/.config/omchat`）。
+>
+> ---
+
 # AIChat: All-in-one LLM CLI Tool
 
 [![CI](https://github.com/sigoden/aichat/actions/workflows/ci.yaml/badge.svg)](https://github.com/sigoden/aichat/actions/workflows/ci.yaml)
