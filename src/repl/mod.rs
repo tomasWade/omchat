@@ -390,214 +390,207 @@ async fn dispatch_repl_command(
     args: Option<&str>,
 ) -> Result<bool> {
     match cmd {
-            "/help" => {
-                dump_repl_help();
+        "/help" => {
+            dump_repl_help();
+        }
+        "/info" => match args {
+            Some("role") => {
+                let info = config.read().role_info()?;
+                print!("{info}");
             }
-            "/info" => match args {
-                Some("role") => {
-                    let info = config.read().role_info()?;
-                    print!("{info}");
+            Some("rag") => {
+                let info = config.read().rag_info()?;
+                print!("{info}");
+            }
+            Some("agent") => {
+                let info = config.read().agent_info()?;
+                print!("{info}");
+            }
+            Some(_) => unknown_command()?,
+            None => {
+                let output = config.read().sysinfo()?;
+                print!("{output}");
+            }
+        },
+        "/model" => match args {
+            Some(name) => {
+                config.write().set_model(name)?;
+            }
+            None => println!("Usage: /model <name>"),
+        },
+        "/prompt" => match args {
+            Some(text) => {
+                config.write().use_prompt_in_topic(text)?;
+            }
+            None => println!("Usage: /prompt <text>..."),
+        },
+        "/role" => match args {
+            Some(args) => match args.split_once(['\n', ' ']) {
+                Some((name, text)) => {
+                    let role = config.read().retrieve_role(name.trim())?;
+                    let input = Input::from_str(config, text, Some(role));
+                    ask(config, abort_signal.clone(), input, false).await?;
                 }
-                Some("rag") => {
-                    let info = config.read().rag_info()?;
-                    print!("{info}");
-                }
-                Some("agent") => {
-                    let info = config.read().agent_info()?;
-                    print!("{info}");
-                }
-                Some(_) => unknown_command()?,
                 None => {
-                    let output = config.read().sysinfo()?;
-                    print!("{output}");
-                }
-            },
-            "/model" => match args {
-                Some(name) => {
-                    config.write().set_model(name)?;
-                }
-                None => println!("Usage: /model <name>"),
-            },
-            "/prompt" => match args {
-                Some(text) => {
-                    config.write().use_prompt_in_topic(text)?;
-                }
-                None => println!("Usage: /prompt <text>..."),
-            },
-            "/role" => match args {
-                Some(args) => match args.split_once(['\n', ' ']) {
-                    Some((name, text)) => {
-                        let role = config.read().retrieve_role(name.trim())?;
-                        let input = Input::from_str(config, text, Some(role));
-                        ask(config, abort_signal.clone(), input, false).await?;
+                    let name = args;
+                    if !Config::has_role(name) {
+                        config.write().new_role(name)?;
                     }
-                    None => {
-                        let name = args;
-                        if !Config::has_role(name) {
-                            config.write().new_role(name)?;
-                        }
-                        config.write().use_role_in_topic(name)?;
-                    }
-                },
-                None => println!(
-                    r#"Usage:
+                    config.write().use_role_in_topic(name)?;
+                }
+            },
+            None => println!(
+                r#"Usage:
     /role <name>                    # If the role exists, switch to it; otherwise, create a new role
     /role <name> [text]...          # Temporarily switch to the role, send the text, and switch back"#
-                ),
-            },
-            "/new" => {
-                config.write().new_topic()?;
+            ),
+        },
+        "/new" => {
+            config.write().new_topic()?;
+        }
+        "/session" => {
+            if args.is_some() {
+                println!("Named sessions have been removed, starting a new topic instead.");
             }
-            "/session" => match args {
-                Some(_) => println!("Named sessions have been removed, starting a new topic instead."),
-                None => {}
-            },
-            "/rag" => {
-                Config::use_rag(config, args, abort_signal.clone()).await?;
+        }
+        "/rag" => {
+            Config::use_rag(config, args, abort_signal.clone()).await?;
+        }
+        "/agent" => match split_first_arg(args) {
+            Some((agent_name, args)) => {
+                let (new_args, _) = split_args_text(args.unwrap_or_default(), cfg!(windows));
+                let (session_name, variable_pairs) = match new_args.first() {
+                    Some(name) if name.contains('=') => (None, new_args.as_slice()),
+                    Some(name) => (Some(name.as_str()), &new_args[1..]),
+                    None => (None, &[] as &[String]),
+                };
+                let variables: AgentVariables = variable_pairs
+                    .iter()
+                    .filter_map(|v| v.split_once('='))
+                    .map(|(key, value)| (key.to_string(), value.to_string()))
+                    .collect();
+                if variables.len() != variable_pairs.len() {
+                    bail!("Some variable values are not key=value pairs");
+                }
+                if !variables.is_empty() {
+                    config.write().agent_variables = Some(variables);
+                }
+                let ret =
+                    Config::use_agent(config, agent_name, session_name, abort_signal.clone()).await;
+                config.write().agent_variables = None;
+                ret?;
             }
-            "/agent" => match split_first_arg(args) {
-                Some((agent_name, args)) => {
-                    let (new_args, _) = split_args_text(args.unwrap_or_default(), cfg!(windows));
-                    let (session_name, variable_pairs) = match new_args.first() {
-                        Some(name) if name.contains('=') => (None, new_args.as_slice()),
-                        Some(name) => (Some(name.as_str()), &new_args[1..]),
-                        None => (None, &[] as &[String]),
-                    };
-                    let variables: AgentVariables = variable_pairs
-                        .iter()
-                        .filter_map(|v| v.split_once('='))
-                        .map(|(key, value)| (key.to_string(), value.to_string()))
-                        .collect();
-                    if variables.len() != variable_pairs.len() {
-                        bail!("Some variable values are not key=value pairs");
-                    }
-                    if !variables.is_empty() {
-                        config.write().agent_variables = Some(variables);
-                    }
-                    let ret =
-                        Config::use_agent(config, agent_name, session_name, abort_signal.clone())
-                            .await;
-                    config.write().agent_variables = None;
-                    ret?;
-                }
-                None => {
-                    println!(r#"Usage: /agent <agent-name> [session-name] [key=value]..."#)
-                }
-            },
-            "/starter" => match args {
-                Some(id) => {
-                    let mut text = None;
-                    if let Some(agent) = config.read().agent.as_ref() {
-                        for (i, value) in agent.conversation_staters().iter().enumerate() {
-                            if (i + 1).to_string() == id {
-                                text = Some(value.clone());
-                            }
-                        }
-                    }
-                    match text {
-                        Some(text) => {
-                            println!("{}", dimmed_text(&format!(">> {text}")));
-                            let input = Input::from_str(config, &text, None);
-                            ask(config, abort_signal.clone(), input, true).await?;
-                        }
-                        None => {
-                            bail!("Invalid starter value");
+            None => {
+                println!(r#"Usage: /agent <agent-name> [session-name] [key=value]..."#)
+            }
+        },
+        "/starter" => match args {
+            Some(id) => {
+                let mut text = None;
+                if let Some(agent) = config.read().agent.as_ref() {
+                    for (i, value) in agent.conversation_staters().iter().enumerate() {
+                        if (i + 1).to_string() == id {
+                            text = Some(value.clone());
                         }
                     }
                 }
-                None => {
-                    let banner = config.read().agent_banner()?;
-                    config.read().print_markdown(&banner)?;
+                match text {
+                    Some(text) => {
+                        println!("{}", dimmed_text(&format!(">> {text}")));
+                        let input = Input::from_str(config, &text, None);
+                        ask(config, abort_signal.clone(), input, true).await?;
+                    }
+                    None => {
+                        bail!("Invalid starter value");
+                    }
                 }
-            },
-            "/save" => match split_first_arg(args) {
-                Some(("role", name)) => {
-                    config.write().save_role(name)?;
+            }
+            None => {
+                let banner = config.read().agent_banner()?;
+                config.read().print_markdown(&banner)?;
+            }
+        },
+        "/save" => match split_first_arg(args) {
+            Some(("role", name)) => {
+                config.write().save_role(name)?;
+            }
+            _ => {
+                println!(r#"Usage: /save role <name>"#)
+            }
+        },
+        "/edit" => {
+            if config.read().macro_flag {
+                bail!("Cannot perform this operation because you are in a macro")
+            }
+            match args {
+                Some("config") => {
+                    config.read().edit_config()?;
+                }
+                Some("role") => {
+                    config.write().edit_role()?;
+                }
+                Some("rag-docs") => {
+                    Config::edit_rag_docs(config, abort_signal.clone()).await?;
+                }
+                Some("agent-config") => {
+                    config.write().edit_agent_config()?;
                 }
                 _ => {
-                    println!(r#"Usage: /save role <name>"#)
-                }
-            },
-            "/edit" => {
-                if config.read().macro_flag {
-                    bail!("Cannot perform this operation because you are in a macro")
-                }
-                match args {
-                    Some("config") => {
-                        config.read().edit_config()?;
-                    }
-                    Some("role") => {
-                        config.write().edit_role()?;
-                    }
-                    Some("rag-docs") => {
-                        Config::edit_rag_docs(config, abort_signal.clone()).await?;
-                    }
-                    Some("agent-config") => {
-                        config.write().edit_agent_config()?;
-                    }
-                    _ => {
-                        println!(r#"Usage: /edit <config|role|rag-docs|agent-config>"#)
-                    }
+                    println!(r#"Usage: /edit <config|role|rag-docs|agent-config>"#)
                 }
             }
-            "/compress" => {
-                match args {
-                    None | Some("session") => {
-                        abortable_run_with_spinner(
-                            Config::compress_session(config),
-                            "Compressing",
-                            abort_signal.clone(),
-                        )
+        }
+        "/compress" => match args {
+            None | Some("session") => {
+                abortable_run_with_spinner(
+                    Config::compress_session(config),
+                    "Compressing",
+                    abort_signal.clone(),
+                )
+                .await?;
+                println!("✓ Successfully compressed the topic.");
+            }
+            _ => {
+                println!(r#"Usage: /compress"#)
+            }
+        },
+        "/rebuild" => match args {
+            Some("rag") => {
+                Config::rebuild_rag(config, abort_signal.clone()).await?;
+            }
+            _ => {
+                println!(r#"Usage: /rebuild rag"#)
+            }
+        },
+        ".sources" => match args {
+            Some("rag") => {
+                let output = Config::rag_sources(config)?;
+                println!("{output}");
+            }
+            _ => {
+                println!(r#"Usage: /sources rag"#)
+            }
+        },
+        "/macro" => match split_first_arg(args) {
+            Some((name, extra)) => {
+                if !Config::has_macro(name) && extra.is_none() {
+                    config.write().new_macro(name)?;
+                } else {
+                    macro_execute(config, name, extra, abort_signal.clone()).await?;
+                }
+            }
+            None => println!("Usage: /macro <name> <text>..."),
+        },
+        "/file" => match args {
+            Some(args) => {
+                let (files, text) = split_args_text(args, cfg!(windows));
+                let input =
+                    Input::from_files_with_spinner(config, text, files, None, abort_signal.clone())
                         .await?;
-                        println!("✓ Successfully compressed the topic.");
-                    }
-                    _ => {
-                        println!(r#"Usage: /compress"#)
-                    }
-                }
+                ask(config, abort_signal.clone(), input, true).await?;
             }
-            "/rebuild" => match args {
-                Some("rag") => {
-                    Config::rebuild_rag(config, abort_signal.clone()).await?;
-                }
-                _ => {
-                    println!(r#"Usage: /rebuild rag"#)
-                }
-            },
-            ".sources" => match args {
-                Some("rag") => {
-                    let output = Config::rag_sources(config)?;
-                    println!("{output}");
-                }
-                _ => {
-                    println!(r#"Usage: /sources rag"#)
-                }
-            },
-            "/macro" => match split_first_arg(args) {
-                Some((name, extra)) => {
-                    if !Config::has_macro(name) && extra.is_none() {
-                        config.write().new_macro(name)?;
-                    } else {
-                        macro_execute(config, name, extra, abort_signal.clone()).await?;
-                    }
-                }
-                None => println!("Usage: /macro <name> <text>..."),
-            },
-            "/file" => match args {
-                Some(args) => {
-                    let (files, text) = split_args_text(args, cfg!(windows));
-                    let input = Input::from_files_with_spinner(
-                        config,
-                        text,
-                        files,
-                        None,
-                        abort_signal.clone(),
-                    )
-                    .await?;
-                    ask(config, abort_signal.clone(), input, true).await?;
-                }
-                None => println!(
-                    r#"Usage: /file <file|dir|url|cmd|loader:resource|%%>... [-- <text>...]
+            None => println!(
+                r#"Usage: /file <file|dir|url|cmd|loader:resource|%%>... [-- <text>...]
 
 /file /tmp/file.txt
 /file src/ Cargo.toml -- analyze
@@ -606,83 +599,83 @@ async fn dispatch_repl_command(
 /file `git diff` -- Generate git commit message
 /file jina:https://example.com
 /file %% -- translate last reply to english"#
-                ),
-            },
-            "/continue" => {
-                let LastMessage {
-                    mut input, output, ..
-                } = match config
-                    .read()
-                    .last_message
-                    .as_ref()
-                    .filter(|v| v.continuous && !v.output.is_empty())
-                    .cloned()
-                {
-                    Some(v) => v,
-                    None => bail!("Unable to continue the response"),
-                };
-                input.set_continue_output(&output);
-                ask(config, abort_signal.clone(), input, true).await?;
+            ),
+        },
+        "/continue" => {
+            let LastMessage {
+                mut input, output, ..
+            } = match config
+                .read()
+                .last_message
+                .as_ref()
+                .filter(|v| v.continuous && !v.output.is_empty())
+                .cloned()
+            {
+                Some(v) => v,
+                None => bail!("Unable to continue the response"),
+            };
+            input.set_continue_output(&output);
+            ask(config, abort_signal.clone(), input, true).await?;
+        }
+        "/regenerate" => {
+            let LastMessage { mut input, .. } = match config
+                .read()
+                .last_message
+                .as_ref()
+                .filter(|v| v.continuous)
+                .cloned()
+            {
+                Some(v) => v,
+                None => bail!("Unable to regenerate the response"),
+            };
+            input.set_regenerate();
+            ask(config, abort_signal.clone(), input, true).await?;
+        }
+        "/set" => match args {
+            Some(args) => {
+                Config::update(config, args)?;
             }
-            "/regenerate" => {
-                let LastMessage { mut input, .. } = match config
-                    .read()
-                    .last_message
-                    .as_ref()
-                    .filter(|v| v.continuous)
-                    .cloned()
-                {
-                    Some(v) => v,
-                    None => bail!("Unable to regenerate the response"),
-                };
-                input.set_regenerate();
-                ask(config, abort_signal.clone(), input, true).await?;
+            _ => {
+                println!("Usage: /set <key> <value>...")
             }
-            "/set" => match args {
-                Some(args) => {
-                    Config::update(config, args)?;
-                }
-                _ => {
-                    println!("Usage: /set <key> <value>...")
-                }
-            },
-            "/delete" => match args {
-                Some(args) => {
-                    Config::delete(config, args)?;
-                }
-                _ => {
-                    println!("Usage: /delete <role|rag|macro|agent-data>")
-                }
-            },
-            "/copy" => {
-                let output = match config
-                    .read()
-                    .last_message
-                    .as_ref()
-                    .filter(|v| !v.output.is_empty())
-                    .map(|v| v.output.clone())
-                {
-                    Some(v) => v,
-                    None => bail!("No chat response to copy"),
-                };
-                set_text(&output).context("Failed to copy the last chat response")?;
+        },
+        "/delete" => match args {
+            Some(args) => {
+                Config::delete(config, args)?;
             }
-            "/exit" => match args {
-                Some("role") => {
-                    config.write().exit_role()?;
-                }
-                Some("rag") => {
-                    config.write().exit_rag()?;
-                }
-                Some("agent") => {
-                    config.write().exit_agent()?;
-                }
-                Some(_) => unknown_command()?,
-                None => {
-                    return Ok(true);
-                }
-            },
-            _ => unknown_command()?,
+            _ => {
+                println!("Usage: /delete <role|rag|macro|agent-data>")
+            }
+        },
+        "/copy" => {
+            let output = match config
+                .read()
+                .last_message
+                .as_ref()
+                .filter(|v| !v.output.is_empty())
+                .map(|v| v.output.clone())
+            {
+                Some(v) => v,
+                None => bail!("No chat response to copy"),
+            };
+            set_text(&output).context("Failed to copy the last chat response")?;
+        }
+        "/exit" => match args {
+            Some("role") => {
+                config.write().exit_role()?;
+            }
+            Some("rag") => {
+                config.write().exit_rag()?;
+            }
+            Some("agent") => {
+                config.write().exit_agent()?;
+            }
+            Some(_) => unknown_command()?,
+            None => {
+                return Ok(true);
+            }
+        },
+        _ => unknown_command()?,
     }
     Ok(false)
 }

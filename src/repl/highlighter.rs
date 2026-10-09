@@ -35,12 +35,12 @@ impl Highlighter for ReplHighlighter {
                 .filter(|v| line.contains(v.as_str()))
                 .collect();
             if let Some(longest_match) =
-                matches.iter().fold(None, |acc: Option<&String>, item| {
-                    match acc {
+                matches
+                    .iter()
+                    .fold(None, |acc: Option<&String>, item| match acc {
                         Some(acc) if acc.len() >= item.len() => Some(acc),
                         _ => Some(item),
-                    }
-                })
+                    })
             {
                 let buffer_split: Vec<&str> = line.splitn(2, longest_match.as_str()).collect();
 
